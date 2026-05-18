@@ -170,4 +170,7 @@ The build counter repository itself is a pure tag store with no executable conte
 |----------|---------|---------|
 | `build-counter-allocator.yml` | `workflow_call`, `workflow_dispatch` | Allocate a counter only; no version calculation |
 | `calculate-version-using-build-counter-allocator.yml` | `workflow_call`, `workflow_dispatch` | Allocate a counter and compute a full semver. The `version_source` input selects between `version_txt` (read `major.minor` from `version.txt`) and `parameters` (use the `major_minor_version` input) |
-| `test-build-counter-allocator-workflow.yml` | `push`, `pull_request`, `workflow_dispatch` | Internal smoke test for `build-counter-allocator.yml`; not intended to be called by consumers |
+| `test-build-counter-allocator-workflow.yml` | `pull_request`, `workflow_dispatch` | Internal smoke test for `build-counter-allocator.yml` (PR context only); not intended to be called by consumers |
+| `test-calculate-version-using-build-counter-allocator-workflow.yml` | `pull_request`, `workflow_dispatch` | Internal smoke test for `calculate-version-using-build-counter-allocator.yml` (PR context only); not intended to be called by consumers |
+
+**Note on test workflows**: Testing is limited to PR contexts (pull_request and manual workflow_dispatch) due to the shared public repository constraint. The GitHub App private key is sensitive and cannot be safely exposed to public repos — org secrets are restricted by default. Post-merge (push event) integration tests would require explicit allowlist configuration, which creates unacceptable security risk given the scope of other actions in this repository.
