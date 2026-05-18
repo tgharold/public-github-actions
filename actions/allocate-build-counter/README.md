@@ -133,6 +133,14 @@ Pull requests callers will also get zero by design.
 
 A tag push failure followed by a retry will re-read the counter state from the remote. If the old tag was deleted before the new one was pushed successfully, and the push then failed, a subsequent retry will see no tags and restart from 1. This is rare but possible under network errors. Increase `max_retries` to reduce the window.
 
+## Testing
+
+This action is tested via pull requests only. Post-merge (push event) testing is **not** performed because the action resides in a shared public repository. GitHub App private keys cannot be safely exposed to public repositories — org secrets are restricted by default, and explicitly allowing a public repo would create an unacceptable security surface given the scope of other actions in this repository.
+
+**For CI/CD integration testing** (where you own a private repository containing only this action or actions that depend on it), the GitHub App private key can be safely configured and post-merge testing can be enabled.
+
+**For pre-merge testing**, the PR-based test workflows are sufficient — they use the GitHub token available in PR context (read-only mode) to validate behavior and error paths.
+
 ## Requirements
 
 ### GitHub App

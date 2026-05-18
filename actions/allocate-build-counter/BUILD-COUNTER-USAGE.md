@@ -174,6 +174,14 @@ On GitHub Enterprise with multiple orgs and no enterprise-level secrets, the sec
 
 **Audit log** (GitHub Enterprise) — every installation token generation is logged. Anomalous generation volume or unexpected timing is detectable.
 
+### Testing Considerations
+
+Because the private key is sensitive, test workflows for this action are typically limited to PR contexts only (read-only mode, no counter writes). Post-merge integration tests require the private key to be configured as an accessible secret, which is only appropriate for **isolated private repositories** containing only the build counter action and tests.
+
+If the action lives in a shared public repository alongside other actions (as in `ritterim/public-github-actions`), GitHub org-level secrets are restricted from public repos by default — only explicit allowlist entries grant access. Exposing the private key to a public repo creates unacceptable risk given the wider scope of other actions in that repository.
+
+For your own infrastructure, if the build counter is in an isolated private repository, configuring the private key is appropriate and post-merge testing can be enabled.
+
 ---
 
 ## Using the Build Counter in Your Repository

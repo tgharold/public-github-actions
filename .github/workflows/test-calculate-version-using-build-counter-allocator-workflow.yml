@@ -2,7 +2,10 @@ name: "Test: Calculate Version Using Build Counter Allocator"
 
 # Standalone testing workflow for the calculate-version-using-build-counter-allocator reusable workflow.
 # Calculates a version number and displays the result for validation.
-# Triggered on push to master and pull requests when related files change.
+# Triggered on pull requests when related files change.
+# NOTE: Testing is PR-only (not push/post-merge) because the action resides in a shared
+# public repo. GitHub App private key cannot be safely exposed to public repos. Post-merge
+# logic would only be tested if the action were in an isolated private repository.
 
 permissions:
   contents: read
@@ -12,12 +15,6 @@ concurrency:
   cancel-in-progress: false
 
 on:
-  push:
-    branches:
-      - master
-    paths:
-      - '.github/workflows/calculate-version-using-build-counter-allocator.yml'
-      - 'actions/allocate-build-counter/**'
   pull_request:
     paths:
       - '.github/workflows/calculate-version-using-build-counter-allocator.yml'
