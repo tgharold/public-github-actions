@@ -24,6 +24,20 @@ Describe 'Set-GitHubOutput' {
     }
 }
 
+Describe 'Get-GitAuthHeader' {
+    It 'returns Authorization: Basic with base64(x-access-token:TOKEN)' {
+        $token = 'ghs_placeholder-test-fixture-not-a-credential'
+        $header = Get-GitAuthHeader -Token $token
+        $expected = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$token"))
+        $header | Should -Be "Authorization: Basic $expected"
+    }
+
+    It 'starts with Authorization: Basic' {
+        $header = Get-GitAuthHeader -Token 'any-token'
+        $header | Should -Match '^Authorization: Basic '
+    }
+}
+
 Describe 'Format-GitArgsForDisplay' {
     It 'redacts token in basic-auth URL' {
         # Use a fixture password that is obviously not a credential to avoid
@@ -32,6 +46,14 @@ Describe 'Format-GitArgsForDisplay' {
         $redacted = Format-GitArgsForDisplay -Arguments @('clone', "https://x-access-token:${fixturePassword}@example.test/org/repo.git", '/tmp/x')
         $redacted -join ' ' | Should -Match '://x-access-token:\*\*\*@example.test'
         $redacted -join ' ' | Should -Not -Match $fixturePassword
+    }
+
+    It 'redacts Basic auth token in http.extraheader config arg' {
+        $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes('x-access-token:ghs_placeholder-test-fixture-not-a-credential'))
+        $args1 = @('-c', "http.extraheader=Authorization: Basic $b64", 'clone', 'https://github.com/org/repo.git', '/tmp/x')
+        $redacted = Format-GitArgsForDisplay -Arguments $args1
+        $redacted -join ' ' | Should -Match 'Authorization: Basic \*\*\*'
+        $redacted -join ' ' | Should -Not -Match $b64
     }
 
     It 'leaves token-free URLs untouched' {
