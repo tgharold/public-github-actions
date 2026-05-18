@@ -1,0 +1,66 @@
+name: "Test: Calculate Version Using Build Counter Allocator"
+
+# Standalone testing workflow for the calculate-version-using-build-counter-allocator reusable workflow.
+# Calculates a version number and displays the result for validation.
+# Triggered on push to master and pull requests when related files change.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - '.github/workflows/calculate-version-using-build-counter-allocator.yml'
+      - 'actions/allocate-build-counter/**'
+  pull_request:
+    paths:
+      - '.github/workflows/calculate-version-using-build-counter-allocator.yml'
+      - 'actions/allocate-build-counter/**'
+  workflow_dispatch:
+
+jobs:
+
+  calculate-version:
+    uses: ./.github/workflows/calculate-version-using-build-counter-allocator.yml
+    with:
+      version_source: parameters
+      major_minor_version: "1.0"
+      counter_key: test
+      counter_app_id: ${{ vars.BUILD_COUNTER_APP_ID }}
+    secrets:
+      BUILD_COUNTER_APP_PRIVATE_KEY: ${{ secrets.BUILD_COUNTER_APP_PRIVATE_KEY }}
+
+  display-results:
+    needs: [ calculate-version ]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "version                : $VERSION"
+          echo "informational_version  : $INFORMATIONAL_VERSION"
+          echo "major_minor_version    : $MAJOR_MINOR_VERSION"
+          echo "patch_version          : $PATCH_VERSION"
+          echo "version_suffix         : $VERSION_SUFFIX"
+          echo "short_git_hash         : $SHORT_GIT_HASH"
+          echo "git_hash               : $GIT_HASH"
+          echo "build_date             : $BUILD_DATE"
+          echo "build_timestamp        : $BUILD_TIMESTAMP"
+          echo "git_commit_date        : $GIT_COMMIT_DATE"
+          echo "git_commit_timestamp   : $GIT_COMMIT_TIMESTAMP"
+        env:
+          VERSION: ${{ needs.calculate-version.outputs.version }}
+          INFORMATIONAL_VERSION: ${{ needs.calculate-version.outputs.informational_version }}
+          MAJOR_MINOR_VERSION: ${{ needs.calculate-version.outputs.major_minor_version }}
+          PATCH_VERSION: ${{ needs.calculate-version.outputs.patch_version }}
+          VERSION_SUFFIX: ${{ needs.calculate-version.outputs.version_suffix }}
+          SHORT_GIT_HASH: ${{ needs.calculate-version.outputs.short_git_hash }}
+          GIT_HASH: ${{ needs.calculate-version.outputs.git_hash }}
+          BUILD_DATE: ${{ needs.calculate-version.outputs.build_date }}
+          BUILD_TIMESTAMP: ${{ needs.calculate-version.outputs.build_timestamp }}
+          GIT_COMMIT_DATE: ${{ needs.calculate-version.outputs.git_commit_date }}
+          GIT_COMMIT_TIMESTAMP: ${{ needs.calculate-version.outputs.git_commit_timestamp }}

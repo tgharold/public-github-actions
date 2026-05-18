@@ -1,0 +1,70 @@
+name: Allocate Build Counter
+description: Allocates a monotonic build counter using Git tags written to a dedicated counter repository.
+
+inputs:
+
+  counter_key:
+    description: Identifies which counter sequence to allocate from. Appears as the last path segment of the tag (`_counters/{owner}/{repo}/{counter_key}-{N}`). Use distinct values to maintain parallel counters in the same repo, or to start a fresh sequence after rollover (e.g. `repo` → `repo2`). Must be alphanumeric, 1-32 chars.
+    required: false
+    default: repo
+
+  max_retries:
+    description: Maximum retry attempts on tag push conflicts. Must be 1-100.
+    required: false
+    default: "25"
+
+  app_id:
+    description: GitHub App ID with Contents write access on the counter repository.
+    required: false
+    default: ''
+
+  private_key:
+    description: GitHub App private key (PEM format) for the counter repository app.
+    required: false
+    default: ''
+
+  counter_repo_owner:
+    description: Owner (org or user) of the counter repository. Defaults to the calling repo's owner.
+    required: false
+    default: ''
+
+  counter_repo_name:
+    description: Name of the counter repository.
+    required: false
+    default: build-counter
+
+outputs:
+
+  build_number:
+    description: Monotonic build number (0-65535 with rollover).
+    value: ${{ steps.allocate.outputs.build_number }}
+
+  tag:
+    description: Full Git tag name created for this build.
+    value: ${{ steps.allocate.outputs.tag }}
+
+runs:
+
+  using: composite
+
+  steps:
+
+    - id: app-token
+      if: ${{ inputs.app_id != '' }}
+      uses: actions/create-github-app-token@v2
+      with:
+        app-id: ${{ inputs.app_id }}
+        private-key: ${{ inputs.private_key }}
+        repositories: ${{ inputs.counter_repo_name }}
+        owner: ${{ inputs.counter_repo_owner || github.repository_owner }}
+
+    - id: allocate
+      shell: pwsh
+      env:
+        COUNTER_KEY: ${{ inputs.counter_key }}
+        MAX_RETRIES: ${{ inputs.max_retries }}
+        APP_TOKEN: ${{ steps.app-token.outputs.token }}
+        COUNTER_REPO_OWNER: ${{ inputs.counter_repo_owner }}
+        COUNTER_REPO_NAME: ${{ inputs.counter_repo_name }}
+        ACTION_PATH: ${{ github.action_path }}
+      run: '& "$env:ACTION_PATH/action.ps1"'

@@ -1,0 +1,341 @@
+name: Calculate Version
+
+# ## Purpose
+# Calculates semantic version numbers for builds by combining a major.minor version
+# with a monotonically-increasing patch number from the build counter allocator.
+#
+# ## How It Works
+# 1. Reads major.minor from version.txt (version_source: version_txt) or from the
+#    major_minor_version input (version_source: parameters)
+# 2. Obtains patch version from build counter allocator (0-65535, monotonically increasing)
+# 3. Auto-detects or applies a version suffix based on build context (PR, release branch, trunk)
+# 4. Outputs full version (e.g. "10.1.2750" or "10.1.2750-pr123.456.1") plus git hash and timestamps
+#
+# ## Version Source
+# - **version_txt**: Reads major.minor from the first non-empty line of version.txt in the repo root
+# - **parameters**: Uses the major_minor_version input directly (required when using this source)
+#
+# ## Version Suffix Auto-Detection
+# When version_suffix is not explicitly provided, the workflow auto-detects based on context:
+# - **Pull request builds**: "-pr{PR_NUMBER}.{RUN_NUMBER}.{RUN_ATTEMPT}"
+# - **Release branches** (release/*): no suffix (production release)
+# - **All other branches** (master, main, etc.): "-alpha{RUN_NUMBER}.{RUN_ATTEMPT}"
+#
+# Explicit version_suffix input always overrides auto-detection.
+#
+# ## Key Assumptions
+# - When using version_txt: version.txt exists with major.minor on first non-empty line (e.g. "10.1")
+# - When using parameters: major_minor_version is in "MAJOR.MINOR" format (e.g. "10.1", "5.0")
+# - All timestamps are in UTC ISO-8601 format
+# - Short git hash is 8 characters
+
+on:
+
+  workflow_call:
+
+    inputs:
+
+      version_source:
+        description: How to obtain the major.minor version. Must be "version_txt" or "parameters".
+        required: true
+        type: string
+
+      major_minor_version:
+        description: The major.minor version prefix in MAJOR.MINOR format (e.g. "10.1" or "5.0"). Required when version_source is "parameters".
+        required: false
+        type: string
+
+      build_number:
+        description: The build number (patch value) from the build counter. If not provided, will be allocated by this workflow.
+        required: false
+        type: string
+
+      version_suffix:
+        description: The version suffix (e.g. "-pr123" or "-alpha1342") for non-release builds.
+        required: false
+        type: string
+
+      counter_key:
+        description: Counter sequence identifier (alphanumeric, 1-32 chars). Only used if build_number is not provided.
+        required: false
+        type: string
+        default: repo
+
+      counter_max_retries:
+        description: Maximum retry attempts for counter allocation. Only used if build_number is not provided.
+        required: false
+        type: string
+        default: "25"
+
+      counter_repo_owner:
+        description: Owner of the build counter repository. Defaults to the BUILD_COUNTER_REPO_OWNER org variable, then the calling repo's owner.
+        required: false
+        type: string
+        default: ''
+
+      counter_repo_name:
+        description: Name of the build counter repository.
+        required: false
+        type: string
+        default: build-counter
+
+      counter_app_id:
+        description: GitHub App ID for writing to the build counter repository.
+        required: false
+        type: string
+        default: ''
+
+
+    secrets:
+
+      BUILD_COUNTER_APP_PRIVATE_KEY:
+        description: GitHub App private key for the build counter repository.
+        required: false
+
+    outputs:
+
+      short_git_hash:
+        description: The first 8 digits of the full git hash.
+        value: ${{ jobs.version.outputs.short_git_hash }}
+
+      git_hash:
+        description: The full git hash.
+        value: ${{ jobs.version.outputs.git_hash }}
+
+      major_minor_version:
+        description: The major/minor version, e.g. "10.1".
+        value: ${{ jobs.version.outputs.major_minor_version }}
+
+      patch_version:
+        description: The value for the patch position in the version number.
+        value: ${{ jobs.version.outputs.patch_version }}
+
+      version:
+        description: The version number to be used in most cases. Usually "10.1.2750" or "10.1.2750-SUFFIX".
+        value: ${{ jobs.version.outputs.version }}
+
+      informational_version:
+        description: The informational version number which includes additional information after a plus sign. Usually followed by the git short hash, e.g. "10.1.2750+abcd1234".
+        value: ${{ jobs.version.outputs.informational_version }}
+
+      version_suffix:
+        description: The version suffix (e.g. "-pr123" or "-alpha1342") which was passed in or auto-detected.
+        value: ${{ jobs.version.outputs.version_suffix }}
+
+      build_date:
+        description: The UTC build date in ISO-8601 format.
+        value: ${{ jobs.version.outputs.build_date }}
+
+      build_timestamp:
+        description: The UTC build date/time in ISO-8601 format. Includes hours/minutes/seconds.
+        value: ${{ jobs.version.outputs.build_timestamp }}
+
+      git_commit_date:
+        description: The UTC date of the git commit in ISO-8601 format.
+        value: ${{ jobs.version.outputs.git_commit_date }}
+
+      git_commit_timestamp:
+        description: The UTC date/time of the git commit in ISO-8601 format. Includes hours/minutes/seconds.
+        value: ${{ jobs.version.outputs.git_commit_timestamp }}
+
+  workflow_dispatch:
+
+    inputs:
+
+      version_source:
+        description: How to obtain the major.minor version.
+        required: true
+        type: choice
+        options:
+          - version_txt
+          - parameters
+
+      major_minor_version:
+        description: The major.minor version prefix in MAJOR.MINOR format (e.g. "10.1" or "5.0"). Required when version_source is "parameters".
+        required: false
+        type: string
+
+      build_number:
+        description: The build number (patch value). If not provided, will be allocated.
+        required: false
+        type: string
+
+      version_suffix:
+        description: The version suffix (e.g. "-pr123" or "-alpha1342") for non-release builds.
+        required: false
+        type: string
+
+      counter_key:
+        description: Counter sequence identifier (alphanumeric, 1-32 chars). Only used if build_number is not provided.
+        required: false
+        type: string
+        default: repo
+
+      counter_max_retries:
+        description: Maximum retry attempts for counter allocation. Only used if build_number is not provided.
+        required: false
+        type: string
+        default: "25"
+
+      counter_repo_owner:
+        description: Owner of the build counter repository. Defaults to the calling repo's owner.
+        required: false
+        type: string
+        default: ''
+
+      counter_repo_name:
+        description: Name of the build counter repository.
+        required: false
+        type: string
+        default: build-counter
+
+      counter_app_id:
+        description: GitHub App ID for writing to the build counter repository. Defaults to the BUILD_COUNTER_APP_ID org variable if not provided.
+        required: false
+        type: string
+        default: ''
+
+jobs:
+
+  version:
+    name: Version Calculation
+    runs-on: ubuntu-latest
+    concurrency:
+      group: build-counter-${{ github.repository }}-${{ inputs.counter_key || 'repo' }}
+
+    outputs:
+      short_git_hash: ${{ steps.version.outputs.short_git_hash }}
+      git_hash: ${{ steps.version.outputs.git_hash }}
+      major_minor_version: ${{ steps.version.outputs.major_minor_version }}
+      patch_version: ${{ steps.version.outputs.patch_version }}
+      version: ${{ steps.version.outputs.version }}
+      informational_version: ${{ steps.version.outputs.informational_version }}
+      version_suffix: ${{ steps.version.outputs.version_suffix }}
+      build_date: ${{ steps.version.outputs.build_date }}
+      build_timestamp: ${{ steps.version.outputs.build_timestamp }}
+      git_commit_date: ${{ steps.version.outputs.git_commit_date }}
+      git_commit_timestamp: ${{ steps.version.outputs.git_commit_timestamp }}
+
+    steps:
+
+      - name: Checkout Project
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+          fetch-depth: 1
+
+      - name: Allocate Build Counter
+        if: ${{ !inputs.build_number }}
+        uses: ./actions/allocate-build-counter
+        id: allocate
+        with:
+          counter_key: ${{ inputs.counter_key }}
+          max_retries: ${{ inputs.counter_max_retries }}
+          app_id: ${{ inputs.counter_app_id || vars.BUILD_COUNTER_APP_ID }}
+          private_key: ${{ secrets.BUILD_COUNTER_APP_PRIVATE_KEY }}
+          counter_repo_owner: ${{ inputs.counter_repo_owner || vars.BUILD_COUNTER_REPO_OWNER }}
+          counter_repo_name: ${{ inputs.counter_repo_name }}
+
+      - name: Calculate Version
+        id: version
+        env:
+          VERSION_SOURCE: ${{ inputs.version_source }}
+          MAJOR_MINOR_VERSION_INPUT: ${{ inputs.major_minor_version }}
+          BUILD_NUMBER: ${{ inputs.build_number || steps.allocate.outputs.build_number }}
+          PROVIDED_VERSION_SUFFIX: ${{ inputs.version_suffix }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_PR_NUMBER: ${{ github.event.number }}
+          GITHUB_RUN_NUMBER: ${{ github.run_number }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          if [[ "${VERSION_SOURCE}" == "version_txt" ]]; then
+            MAJOR_MINOR="$(awk 'NF {print; exit}' version.txt | xargs)"
+          elif [[ "${VERSION_SOURCE}" == "parameters" ]]; then
+            if [[ -z "${MAJOR_MINOR_VERSION_INPUT}" ]]; then
+              echo "::error::major_minor_version is required when version_source is 'parameters'"
+              exit 1
+            fi
+            MAJOR_MINOR="${MAJOR_MINOR_VERSION_INPUT}"
+          else
+            echo "::error::version_source must be 'version_txt' or 'parameters', got: '${VERSION_SOURCE}'"
+            exit 1
+          fi
+
+          if [[ ! "${MAJOR_MINOR}" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::major.minor version must be in MAJOR.MINOR format (e.g. '10.1'), got: '${MAJOR_MINOR}'"
+            exit 1
+          fi
+
+          PATCH="${BUILD_NUMBER}"
+          VERSION="${MAJOR_MINOR}.${PATCH}"
+
+          if [[ -n "${PROVIDED_VERSION_SUFFIX}" ]]; then
+            VERSION_SUFFIX="${PROVIDED_VERSION_SUFFIX}"
+          else
+            if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+              VERSION_SUFFIX="-pr${GITHUB_PR_NUMBER}.${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+            else
+              BRANCH_NAME="${GITHUB_REF#refs/heads/}"
+              BRANCH_NAME="${BRANCH_NAME#refs/tags/}"
+
+              if [[ "${BRANCH_NAME}" =~ ^release/ ]]; then
+                VERSION_SUFFIX=""
+              else
+                VERSION_SUFFIX="-alpha${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}"
+              fi
+            fi
+          fi
+
+          if [[ -n "${VERSION_SUFFIX}" ]]; then
+            VERSION="${VERSION}${VERSION_SUFFIX}"
+          fi
+
+          SHORT_GIT_HASH="$(git rev-parse --short=8 HEAD)"
+          GIT_HASH="$(git rev-parse HEAD)"
+
+          BUILD_DATE="$(date -u +%Y-%m-%d)"
+          BUILD_TIMESTAMP="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+          COMMIT_DATE="$(git log -1 --format=%ci HEAD | cut -d' ' -f1)"
+          COMMIT_TIMESTAMP="$(git log -1 --format=%cI HEAD)"
+
+          INFORMATIONAL_VERSION="${VERSION}+${SHORT_GIT_HASH}"
+
+          echo "short_git_hash=${SHORT_GIT_HASH}" >> "${GITHUB_OUTPUT}"
+          echo "git_hash=${GIT_HASH}" >> "${GITHUB_OUTPUT}"
+          echo "major_minor_version=${MAJOR_MINOR}" >> "${GITHUB_OUTPUT}"
+          echo "patch_version=${PATCH}" >> "${GITHUB_OUTPUT}"
+          echo "version=${VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "informational_version=${INFORMATIONAL_VERSION}" >> "${GITHUB_OUTPUT}"
+          echo "version_suffix=${VERSION_SUFFIX}" >> "${GITHUB_OUTPUT}"
+          echo "build_date=${BUILD_DATE}" >> "${GITHUB_OUTPUT}"
+          echo "build_timestamp=${BUILD_TIMESTAMP}" >> "${GITHUB_OUTPUT}"
+          echo "git_commit_date=${COMMIT_DATE}" >> "${GITHUB_OUTPUT}"
+          echo "git_commit_timestamp=${COMMIT_TIMESTAMP}" >> "${GITHUB_OUTPUT}"
+
+      - name: Display Version Outputs
+        env:
+          SHORT_GIT_HASH: ${{ steps.version.outputs.short_git_hash }}
+          GIT_HASH: ${{ steps.version.outputs.git_hash }}
+          MAJOR_MINOR_VERSION: ${{ steps.version.outputs.major_minor_version }}
+          PATCH_VERSION: ${{ steps.version.outputs.patch_version }}
+          VERSION: ${{ steps.version.outputs.version }}
+          INFORMATIONAL_VERSION: ${{ steps.version.outputs.informational_version }}
+          VERSION_SUFFIX: ${{ steps.version.outputs.version_suffix }}
+          BUILD_DATE: ${{ steps.version.outputs.build_date }}
+          BUILD_TIMESTAMP: ${{ steps.version.outputs.build_timestamp }}
+          GIT_COMMIT_DATE: ${{ steps.version.outputs.git_commit_date }}
+          GIT_COMMIT_TIMESTAMP: ${{ steps.version.outputs.git_commit_timestamp }}
+        run: |
+          echo "short_git_hash: $SHORT_GIT_HASH"
+          echo "git_hash: $GIT_HASH"
+          echo "major_minor_version: $MAJOR_MINOR_VERSION"
+          echo "patch_version: $PATCH_VERSION"
+          echo "version: $VERSION"
+          echo "informational_version: $INFORMATIONAL_VERSION"
+          echo "version_suffix: $VERSION_SUFFIX"
+          echo "build_date: $BUILD_DATE"
+          echo "build_timestamp: $BUILD_TIMESTAMP"
+          echo "git_commit_date: $GIT_COMMIT_DATE"
+          echo "git_commit_timestamp: $GIT_COMMIT_TIMESTAMP"

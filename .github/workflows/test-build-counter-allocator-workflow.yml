@@ -1,0 +1,45 @@
+name: "Test: Build Counter Allocator"
+
+# Standalone testing workflow for the build-counter-allocator reusable workflow.
+# Allocates a build counter and displays the result for validation.
+# Triggered on push to master and pull requests when files in the action directory change.
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'actions/allocate-build-counter/**'
+  pull_request:
+    paths:
+      - 'actions/allocate-build-counter/**'
+  workflow_dispatch:
+
+jobs:
+
+  allocate:
+    uses: ./.github/workflows/build-counter-allocator.yml
+    with:
+      counter_key: test
+      max_retries: 25
+      counter_app_id: ${{ vars.BUILD_COUNTER_APP_ID }}
+    secrets:
+      BUILD_COUNTER_APP_PRIVATE_KEY: ${{ secrets.BUILD_COUNTER_APP_PRIVATE_KEY }}
+
+  display-results:
+    needs: [ allocate ]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo "Build number : $BUILD_NUMBER"
+          echo "Counter tag  : $COUNTER_TAG"
+        env:
+          BUILD_NUMBER: ${{ needs.allocate.outputs.build_number }}
+          COUNTER_TAG: ${{ needs.allocate.outputs.tag }}

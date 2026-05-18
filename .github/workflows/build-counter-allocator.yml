@@ -1,0 +1,114 @@
+name: Build Counter Allocator
+
+permissions:
+  contents: read
+
+on:
+
+  workflow_call:
+
+    inputs:
+
+      counter_key:
+        description: Identifies which counter sequence to allocate from. Appears as the last path segment of the tag (`_counters/{owner}/{repo}/{counter_key}-{N}`). Use distinct values to maintain parallel counters in the same repo, or to start a fresh sequence after rollover (e.g. `repo` → `repo2`). Must be alphanumeric, 1-32 chars.
+        type: string
+        default: repo
+
+      max_retries:
+        description: Maximum retry attempts on tag push conflicts
+        type: number
+        default: 25
+
+      counter_repo_owner:
+        description: Owner of the build counter repository. Defaults to the calling repo's owner.
+        type: string
+        default: ''
+
+      counter_repo_name:
+        description: Name of the build counter repository.
+        type: string
+        default: build-counter
+
+      counter_app_id:
+        description: GitHub App ID for writing to the build counter repository.
+        type: string
+        default: ''
+
+    secrets:
+
+      BUILD_COUNTER_APP_PRIVATE_KEY:
+        description: GitHub App private key for the build counter repository.
+        required: false
+
+    outputs:
+
+      build_number:
+        description: Monotonic build number (0-65535 with rollover)
+        value: ${{ jobs.allocate.outputs.build_number }}
+
+      tag:
+        description: Full Git tag name created for this build
+        value: ${{ jobs.allocate.outputs.tag }}
+
+  workflow_dispatch:
+
+    inputs:
+
+      counter_key:
+        description: Counter sequence identifier (alphanumeric, 1-32 chars).
+        required: false
+        type: string
+        default: repo
+
+      max_retries:
+        description: Maximum retry attempts
+        required: false
+        type: string
+        default: "25"
+
+      counter_repo_owner:
+        description: Owner of the build counter repository. Defaults to the calling repo's owner.
+        required: false
+        type: string
+        default: ''
+
+      counter_repo_name:
+        description: Name of the build counter repository.
+        required: false
+        type: string
+        default: build-counter
+
+      counter_app_id:
+        description: GitHub App ID for writing to the build counter repository. Defaults to the BUILD_COUNTER_APP_ID org variable if not provided.
+        required: false
+        type: string
+        default: ''
+
+jobs:
+
+  allocate:
+
+    runs-on: ubuntu-latest
+
+    concurrency:
+      group: build-counter-${{ github.repository }}-${{ inputs.counter_key }}
+
+    outputs:
+      build_number: ${{ steps.alloc.outputs.build_number }}
+      tag: ${{ steps.alloc.outputs.tag }}
+
+    steps:
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: ./actions/allocate-build-counter
+        id: alloc
+        with:
+          counter_key: ${{ inputs.counter_key }}
+          max_retries: ${{ inputs.max_retries }}
+          app_id: ${{ inputs.counter_app_id || vars.BUILD_COUNTER_APP_ID }}
+          private_key: ${{ secrets.BUILD_COUNTER_APP_PRIVATE_KEY }}
+          counter_repo_owner: ${{ inputs.counter_repo_owner || vars.BUILD_COUNTER_REPO_OWNER }}
+          counter_repo_name: ${{ inputs.counter_repo_name }}
