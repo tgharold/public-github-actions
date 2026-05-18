@@ -104,15 +104,8 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Checkout public-github-actions
-        uses: actions/checkout@v4
-        with:
-          repository: ritterim/public-github-actions
-          path: .public-github-actions
-          fetch-depth: 1
-
       - name: Allocate Build Counter
-        uses: ./.public-github-actions/actions/allocate-build-counter
+        uses: ritterim/public-github-actions/actions/allocate-build-counter@79ec3d558b7dc11a85bbdd86ee6f1c9a3ba02b82
         id: alloc
         with:
           counter_key: ${{ inputs.counter_key }}
