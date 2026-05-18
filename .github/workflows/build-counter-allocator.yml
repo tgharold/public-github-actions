@@ -105,7 +105,7 @@ jobs:
           fetch-depth: 1
 
       - name: Allocate Build Counter
-        uses: ritterim/public-github-actions/actions/allocate-build-counter@4ee324cceb1d83fdf6a629a619e8ddbb3a046b8b
+        uses: ritterim/public-github-actions/actions/allocate-build-counter@88bb57763d4166c08e89ddb8765814523a50af9c
         id: alloc
         with:
           counter_key: ${{ inputs.counter_key }}
