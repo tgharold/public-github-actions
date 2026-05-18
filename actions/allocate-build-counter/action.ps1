@@ -215,13 +215,16 @@ function Invoke-GitCommand {
     $displayArgs = Format-GitArgsForDisplay -Arguments $finalArgs
     Write-Verbose "git $($displayArgs -join ' ')"
 
-    if ($CaptureOutput) {
-        $output = & git @finalArgs 2>&1
-    } else {
-        & git @finalArgs 2>&1 | Out-Null
-    }
+    $output = & git @finalArgs 2>&1
 
     if ($LASTEXITCODE -ne 0 -and -not $IgnoreErrors) {
+        if ($output) {
+            $outputLines = @($output | ForEach-Object { "$_" } | Where-Object { $_ })
+            $redactedLines = Format-GitArgsForDisplay -Arguments $outputLines
+            foreach ($line in $redactedLines) {
+                Write-Verbose "git output: $line"
+            }
+        }
         Write-Error "git command failed with exit code $LASTEXITCODE"
         exit 1
     }
