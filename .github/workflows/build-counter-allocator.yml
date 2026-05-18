@@ -99,11 +99,20 @@ jobs:
 
     steps:
 
-      - uses: actions/checkout@v4
+      - name: Checkout Project
+        uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
-      - uses: ./actions/allocate-build-counter
+      - name: Checkout public-github-actions
+        uses: actions/checkout@v4
+        with:
+          repository: ritterim/public-github-actions
+          path: .public-github-actions
+          fetch-depth: 1
+
+      - name: Allocate Build Counter
+        uses: ./.public-github-actions/actions/allocate-build-counter
         id: alloc
         with:
           counter_key: ${{ inputs.counter_key }}
