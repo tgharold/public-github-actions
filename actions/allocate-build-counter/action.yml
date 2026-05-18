@@ -50,7 +50,7 @@ runs:
   steps:
 
     - id: app-token
-      if: ${{ inputs.app_id != '' }}
+      if: ${{ inputs.app_id != '' && inputs.private_key != '' }}
       uses: actions/create-github-app-token@v2
       with:
         app-id: ${{ inputs.app_id }}
