@@ -191,14 +191,20 @@ function Get-ResolvedRepository {
     return @{ Value = 'local-repo'; Source = 'fallback default' }
 }
 
+function Get-GitAuthHeader {
+    param([string] $Token)
+    $b64 = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("x-access-token:$Token"))
+    return "Authorization: Basic $b64"
+}
+
 function Format-GitArgsForDisplay {
     param([string[]] $Arguments)
     # Redact embedded tokens and credentials before logging.
     # Pattern 1: scheme://userinfo:token@host -> scheme://userinfo:***@host
-    # Pattern 2: Authorization: Bearer/token ... -> Authorization: Bearer/token ***
+    # Pattern 2: Authorization: Bearer/token/Basic ... -> Authorization: <scheme> ***
     return $Arguments | ForEach-Object {
         $_ -replace '(://[^:/\s@]+):[^@\s]+@', '$1:***@' `
-           -replace '(Authorization: (?:Bearer|token)\s+)\S+', '$1***'
+           -replace '(Authorization: (?:Bearer|token|Basic)\s+)\S+', '$1***'
     }
 }
 
@@ -262,7 +268,7 @@ function Initialize-CounterRepository {
     Remove-Item -Path $clonePath -Recurse -Force -ErrorAction SilentlyContinue
 
     # Clone with token via header to keep it out of git config
-    $authHeader = "Authorization: Bearer $Token"
+    $authHeader = Get-GitAuthHeader -Token $Token
     Invoke-GitCommand @('-c', "http.extraheader=$authHeader", 'clone', '--filter=blob:none', '--no-checkout', '--depth=1', $resolvedUrl, $clonePath)
 
     # Ensure remote URL has no embedded credentials
@@ -281,7 +287,7 @@ function Get-NextBuildNumber {
     )
 
     Write-Verbose "Fetching tags for prefix: $TagPrefix"
-    $fetchArgs = if ($Token) { @('-c', "http.extraheader=Authorization: Bearer $Token") + @('fetch', '--tags', '--force') } else { @('fetch', '--tags', '--force') }
+    $fetchArgs = if ($Token) { @('-c', "http.extraheader=$(Get-GitAuthHeader -Token $Token)") + @('fetch', '--tags', '--force') } else { @('fetch', '--tags', '--force') }
     Invoke-GitCommand $fetchArgs -RepoPath $RepoPath -IgnoreErrors
 
     $allTags = Invoke-GitCommand @('tag', '-l', "${TagPrefix}*") -RepoPath $RepoPath -IgnoreErrors -CaptureOutput | Where-Object { $_ }
@@ -320,7 +326,7 @@ function Push-BuildNumberTag {
     Invoke-GitCommand @('tag', $NewTag) -RepoPath $RepoPath
 
     Write-Verbose "Pushing tag to origin"
-    $pushArgs = if ($Token) { @('-c', "http.extraheader=Authorization: Bearer $Token") + @('push', 'origin', "refs/tags/${NewTag}") } else { @('push', 'origin', "refs/tags/${NewTag}") }
+    $pushArgs = if ($Token) { @('-c', "http.extraheader=$(Get-GitAuthHeader -Token $Token)") + @('push', 'origin', "refs/tags/${NewTag}") } else { @('push', 'origin', "refs/tags/${NewTag}") }
     Invoke-GitCommand $pushArgs -RepoPath $RepoPath -IgnoreErrors
     if ($LASTEXITCODE -eq 0) {
         return $true
@@ -350,7 +356,7 @@ function Remove-OldBuildNumberTags {
     if ($tagsToDelete) {
         Write-Verbose "Cleaning up $($tagsToDelete.Count) old tag(s)"
         foreach ($oldTag in $tagsToDelete) {
-            $deleteArgs = if ($Token) { @('-c', "http.extraheader=Authorization: Bearer $Token") + @('push', 'origin', '--delete', $oldTag) } else { @('push', 'origin', '--delete', $oldTag) }
+            $deleteArgs = if ($Token) { @('-c', "http.extraheader=$(Get-GitAuthHeader -Token $Token)") + @('push', 'origin', '--delete', $oldTag) } else { @('push', 'origin', '--delete', $oldTag) }
             Invoke-GitCommand $deleteArgs -RepoPath $RepoPath -IgnoreErrors
             if ($LASTEXITCODE -ne 0) {
                 Write-Warning "Failed to delete old tag $oldTag (git exit code $LASTEXITCODE) - tag will be retried on next allocation"
