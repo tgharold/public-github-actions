@@ -67,4 +67,5 @@ runs:
         COUNTER_REPO_OWNER: ${{ inputs.counter_repo_owner }}
         COUNTER_REPO_NAME: ${{ inputs.counter_repo_name }}
         ACTION_PATH: ${{ github.action_path }}
+        GIT_TERMINAL_PROMPT: "0"
       run: '& "$env:ACTION_PATH/action.ps1"'
